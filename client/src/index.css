@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:focus-visible {
+  outline: 3px solid #f97316;
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    outline-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
