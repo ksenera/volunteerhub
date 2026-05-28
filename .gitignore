@@ -1,0 +1,64 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# React / Vite
+dist/
+*/dist/
+build/
+*/build/
+dist-ssr/
+*.tsbuildinfo
+.vite/
+coverage/
+*/coverage/
+
+# Python / Flask
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+instance/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+*/.venv/
+*/venv/
+
+# Local PostgreSQL data
+docker-postgres/data/
+pgdata/
+*.dump
+*.sql.gz
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
