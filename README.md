@@ -8,9 +8,15 @@ The project also includes an optional AI-assisted listing summary workflow. It d
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS
 - Backend: Python, Flask, Flask-CORS
-- Database: PostgreSQL
+- Database: PostgreSQL, Docker Compose for local development
 - Tests: Vitest, React Testing Library, pytest
 - CI: GitHub Actions
+
+## Screenshots
+
+![Volunteer listings dashboard](docs/screenshots/listings-dashboard.png)
+
+![AI-assisted listing summary](docs/screenshots/listing-summary.png)
 
 ## Folder Structure
 
@@ -24,6 +30,8 @@ The project also includes an optional AI-assisted listing summary workflow. It d
 │   ├── backend.py           # API routes, PostgreSQL repository, mock test repository
 │   ├── requirements.txt
 │   └── tests/               # pytest API tests
+├── docker-compose.yml       # Local PostgreSQL service
+├── docs/screenshots/        # README screenshots
 ├── .github/workflows/       # CI workflow
 ├── .env.example             # Backend environment template
 └── README.md
@@ -83,13 +91,13 @@ pip install -r requirements.txt
 
 ## Database Setup
 
-Create a local PostgreSQL database that matches `DATABASE_URL`. One simple option:
+Start PostgreSQL with Docker Compose:
 
 ```bash
-createdb volottdb
+docker compose up -d postgres
 ```
 
-Then start the backend and initialize the schema:
+Then start the backend and initialize the schema in another terminal:
 
 ```bash
 cd server
@@ -103,6 +111,12 @@ curl -X POST http://localhost:5000/api/init-db
 ```
 
 The app creates a `listings` table with fields for listing details, generated summary text, prompt version, and human review status.
+
+If you already have PostgreSQL installed locally, you can skip Docker and create a database that matches `DATABASE_URL`:
+
+```bash
+createdb volottdb
+```
 
 ## Run Locally
 
@@ -161,6 +175,5 @@ New AI summaries are marked `needs_review`.
 ## Known Limitations
 
 - Authentication is still basic Firebase sign-in plumbing and is not connected to listing permissions.
-- There is no Docker Compose file yet for PostgreSQL; local database setup is manual.
 - The UI is intentionally simple and student-project realistic, not a production admin dashboard.
 - The previous scraper route was removed from the main workflow; listing data is currently entered through the app.
