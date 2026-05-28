@@ -5,6 +5,8 @@ import { signOut } from "firebase/auth";
 
 const LogoutButton: React.FC = () => {
   const handleLogout = async () => {
+    if (!auth) return;
+
     try {
       await signOut(auth);
     } catch (error) {
@@ -12,7 +14,11 @@ const LogoutButton: React.FC = () => {
     }
   };
 
-  return <button onClick={handleLogout}>Logout</button>;
+  return (
+    <button onClick={handleLogout} disabled={!auth}>
+      Logout
+    </button>
+  );
 };
 
 export default LogoutButton;

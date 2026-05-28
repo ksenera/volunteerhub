@@ -5,6 +5,8 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const LoginButton: React.FC = () => {
   const handleLogin = async () => {
+    if (!auth) return;
+
     const provider = new GoogleAuthProvider();
 
     try {
@@ -14,7 +16,11 @@ const LoginButton: React.FC = () => {
     }
   };
 
-  return <button onClick={handleLogin}>Sign in</button>;
+  return (
+    <button onClick={handleLogin} disabled={!auth}>
+      Sign in
+    </button>
+  );
 };
 
 export default LoginButton;

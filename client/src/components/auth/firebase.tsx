@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { Auth, getAuth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,9 +12,18 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const app: FirebaseApp = !getApps().length
-  ? initializeApp(firebaseConfig)
-  : getApps()[0];
+const hasFirebaseConfig = Boolean(
+  firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId
+);
 
-export const auth = getAuth(app);
+const app: FirebaseApp | null = hasFirebaseConfig
+  ? !getApps().length
+    ? initializeApp(firebaseConfig)
+    : getApps()[0]
+  : null;
+
+export const auth: Auth | null = app ? getAuth(app) : null;
 export default app;
