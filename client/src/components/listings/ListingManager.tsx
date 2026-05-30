@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  claimListing,
   createListing,
   deleteListing,
   fetchListings,
+  fetchRewards,
   generateSummary,
   Listing,
   ListingInput,
@@ -31,6 +33,8 @@ function ListingManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [pointsBalance, setPointsBalance] = useState(0);
 
   const locations = useMemo(
     () => Array.from(new Set(listings.map((listing) => listing.location))).sort(),
@@ -41,8 +45,12 @@ function ListingManager() {
     setIsLoading(true);
     setError("");
     try {
-      const data = await fetchListings({ search, location, commitment });
-      setListings(data.listings);
+      const [listingsData, rewardsData] = await Promise.all([
+        fetchListings({ search, location, commitment }),
+        fetchRewards(),
+      ]);
+      setListings(listingsData.listings);
+      setPointsBalance(rewardsData.pointsBalance);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load listings.");
     } finally {
@@ -70,6 +78,7 @@ function ListingManager() {
     event.preventDefault();
     setIsSaving(true);
     setError("");
+    setNotice("");
     try {
       if (editingId) {
         await updateListing(editingId, form);
@@ -102,6 +111,7 @@ function ListingManager() {
 
   const removeListing = async (id: number) => {
     setError("");
+    setNotice("");
     try {
       await deleteListing(id);
       await loadListings();
@@ -112,6 +122,7 @@ function ListingManager() {
 
   const summarize = async (id: number) => {
     setError("");
+    setNotice("");
     try {
       const updated = await generateSummary(id);
       setListings((current) =>
@@ -119,6 +130,25 @@ function ListingManager() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate a summary.");
+    }
+  };
+
+  const claimPoints = async (id: number) => {
+    setError("");
+    setNotice("");
+    try {
+      const result = await claimListing(id);
+      setPointsBalance(result.pointsBalance);
+      setListings((current) =>
+        current.map((listing) => (listing.id === id ? result.listing : listing)),
+      );
+      setNotice(
+        result.alreadyClaimed
+          ? "You already claimed points for that listing."
+          : `Claimed ${result.awardedPoints} points.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not claim points.");
     }
   };
 
@@ -135,11 +165,19 @@ function ListingManager() {
           Create, edit, search, and filter volunteer opportunities saved through
           the Flask API.
         </p>
+        <p className="mt-2 w-fit rounded border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800">
+          Reward balance: {pointsBalance} points
+        </p>
       </div>
 
       {error && (
         <div role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-800">
           {error}
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="mb-4 rounded border border-green-300 bg-green-50 p-3 text-green-800">
+          {notice}
         </div>
       )}
 
@@ -335,6 +373,10 @@ function ListingManager() {
                         {listing.commitment} | {listing.location} |{" "}
                         {listing.distanceMinutes} min
                       </p>
+                      <p className="mt-2 w-fit rounded bg-orange-100 px-2 py-1 text-sm font-semibold text-orange-800">
+                        {listing.pointsValue} points
+                        {listing.claimed ? " claimed" : " available"}
+                      </p>
                       <p className="mt-2 text-sm text-slate-600">
                         {listing.volunteerTypes || "No volunteer type listed"}
                       </p>
@@ -366,6 +408,14 @@ function ListingManager() {
                         className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800"
                       >
                         Generate Summary
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => claimPoints(listing.id)}
+                        disabled={listing.claimed}
+                        className="rounded bg-orange-600 px-3 py-2 text-sm font-semibold text-white disabled:bg-slate-300 disabled:text-slate-600"
+                      >
+                        {listing.claimed ? "Points Claimed" : "Claim Points"}
                       </button>
                       <button
                         type="button"

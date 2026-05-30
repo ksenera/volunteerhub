@@ -31,6 +31,8 @@ const listings = [
     applicationDeadline: "June 1, 2025",
     website: "https://example.org",
     distanceMinutes: 0,
+    pointsValue: 50,
+    claimed: false,
     summary: null,
     summaryPromptVersion: null,
     summaryReviewStatus: "not_generated",
@@ -44,6 +46,29 @@ describe("App", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, options?: RequestInit) => {
+        if (url.includes("/api/rewards")) {
+          return Response.json({
+            pointsBalance: 0,
+            rewards: [
+              {
+                id: "amazon",
+                name: "Amazon Gift Card",
+                pointsCost: 3000,
+                canRedeem: false,
+              },
+            ],
+          });
+        }
+
+        if (url.includes("/api/listings/1/claim")) {
+          return Response.json({
+            listing: { ...listings[0], claimed: true },
+            pointsBalance: 50,
+            awardedPoints: 50,
+            alreadyClaimed: false,
+          });
+        }
+
         if (url.includes("/api/listings") && options?.method === "POST") {
           return Response.json({ ...listings[0], id: 2 }, { status: 201 });
         }
@@ -59,6 +84,7 @@ describe("App", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading listings");
     expect(await screen.findByText("Community Event Organizer")).toBeInTheDocument();
     expect(screen.getByText("Local Initiatives")).toBeInTheDocument();
+    expect(screen.getByText("50 points available")).toBeInTheDocument();
   });
 
   test("creates a listing through the form", async () => {
@@ -79,5 +105,16 @@ describe("App", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+  });
+
+  test("claims points for a listing", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText("Community Event Organizer");
+    await user.click(screen.getByRole("button", { name: /claim points/i }));
+
+    expect(await screen.findByText("Claimed 50 points.")).toBeInTheDocument();
+    expect(screen.getByText("Reward balance: 50 points")).toBeInTheDocument();
   });
 });

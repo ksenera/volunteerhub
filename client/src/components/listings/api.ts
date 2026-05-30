@@ -9,6 +9,8 @@ export type Listing = {
   applicationDeadline: string;
   website: string;
   distanceMinutes: number;
+  pointsValue: number;
+  claimed: boolean;
   summary?: string | null;
   summaryPromptVersion?: string | null;
   summaryReviewStatus?: string;
@@ -16,8 +18,25 @@ export type Listing = {
 
 export type ListingInput = Omit<
   Listing,
-  "id" | "summary" | "summaryPromptVersion" | "summaryReviewStatus"
+  | "id"
+  | "pointsValue"
+  | "claimed"
+  | "summary"
+  | "summaryPromptVersion"
+  | "summaryReviewStatus"
 >;
+
+export type Reward = {
+  id: string;
+  name: string;
+  pointsCost: number;
+  canRedeem: boolean;
+};
+
+export type RewardsState = {
+  pointsBalance: number;
+  rewards: Reward[];
+};
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -78,5 +97,27 @@ export function deleteListing(id: number) {
 export function generateSummary(id: number) {
   return request<Listing>(`/api/listings/${id}/summary`, {
     method: "POST",
+  });
+}
+
+export function claimListing(id: number) {
+  return request<{
+    listing: Listing;
+    pointsBalance: number;
+    awardedPoints: number;
+    alreadyClaimed: boolean;
+  }>(`/api/listings/${id}/claim`, {
+    method: "POST",
+  });
+}
+
+export function fetchRewards() {
+  return request<RewardsState>("/api/rewards");
+}
+
+export function redeemReward(rewardId: string) {
+  return request<RewardsState & { redeemedReward: Reward }>("/api/rewards/redeem", {
+    method: "POST",
+    body: JSON.stringify({ rewardId }),
   });
 }

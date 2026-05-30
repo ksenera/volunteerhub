@@ -77,3 +77,49 @@ def test_update_delete_and_summary(client):
     deleted = client.delete(f"/api/listings/{created['id']}")
     assert deleted.status_code == 204
     assert client.delete(f"/api/listings/{created['id']}").status_code == 404
+
+
+def test_claim_points_and_redeem_rewards(client):
+    rewards = client.get("/api/rewards")
+    assert rewards.status_code == 200
+    assert rewards.get_json()["pointsBalance"] == 0
+
+    claimed = client.post("/api/listings/2/claim")
+    assert claimed.status_code == 200
+    claim_data = claimed.get_json()
+    assert claim_data["awardedPoints"] == 500
+    assert claim_data["pointsBalance"] == 500
+    assert claim_data["listing"]["claimed"] is True
+
+    duplicate = client.post("/api/listings/2/claim")
+    assert duplicate.status_code == 200
+    assert duplicate.get_json()["awardedPoints"] == 0
+
+    too_expensive = client.post("/api/rewards/redeem", json={"rewardId": "amazon"})
+    assert too_expensive.status_code == 400
+    assert too_expensive.get_json()["error"] == "Not enough points to redeem this reward."
+
+    client.post(
+        "/api/listings",
+        json={
+            "title": "Mentor Team Lead",
+            "organization": "Youth Mentors",
+            "commitment": "Ongoing",
+            "location": "Ottawa",
+        },
+    )
+    client.post(
+        "/api/listings",
+        json={
+            "title": "Program Support Lead",
+            "organization": "Community Lab",
+            "commitment": "Ongoing",
+            "location": "Remote",
+        },
+    )
+    client.post("/api/listings/3/claim")
+    client.post("/api/listings/4/claim")
+    redeemed = client.post("/api/rewards/redeem", json={"rewardId": "amazon"})
+    assert redeemed.status_code == 200
+    assert redeemed.get_json()["redeemedReward"]["id"] == "amazon"
+    assert redeemed.get_json()["pointsBalance"] == 1500

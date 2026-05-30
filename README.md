@@ -1,6 +1,6 @@
 # VolunteerHub
 
-VolunteerHub is a CUHacking 2025 student project for managing volunteer opportunities. The app lets a user create, edit, delete, search, and filter listings from a React frontend, with data persisted by a Flask API backed by PostgreSQL.
+VolunteerHub is a CUHacking 2025 student project for managing volunteer opportunities. The app lets a user create, edit, delete, search, filter, claim points from, and redeem rewards for listings from a React frontend, with data persisted by a Flask API backed by PostgreSQL.
 
 The project also includes an optional AI-assisted listing summary workflow. It defaults to a mock summary provider so the app runs without API keys.
 
@@ -172,8 +172,15 @@ Generated summaries are stored on the listing with:
 
 New AI summaries are marked `needs_review`.
 
+## Rewards Flow
+
+Listings have a point value based on their commitment level. Users can claim points once per listing, see their current reward balance, and redeem prototype gift card rewards when they have enough points.
+
+This is intentionally lightweight gamification for the demo. It uses a shared demo user rather than production authentication or real gift card fulfillment.
+
 ## Known Limitations
 
 - Authentication is still basic Firebase sign-in plumbing and is not connected to listing permissions.
+- Rewards use a shared demo user and prototype gift card states; there is no real payment or fulfillment integration.
 - The UI is intentionally simple and student-project realistic, not a production admin dashboard.
 - The previous scraper route was removed from the main workflow; listing data is currently entered through the app.

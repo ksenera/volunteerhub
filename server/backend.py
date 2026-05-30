@@ -10,6 +10,24 @@ from psycopg2.extras import RealDictCursor
 load_dotenv()
 
 SUMMARY_PROMPT_VERSION = "listing-summary-v1"
+DEMO_USER_ID = "demo-user"
+REWARDS = [
+    {"id": "amazon", "name": "Amazon Gift Card", "pointsCost": 3000},
+    {"id": "starbucks", "name": "Starbucks Gift Card", "pointsCost": 5000},
+    {"id": "visa", "name": "Visa Gift Card", "pointsCost": 10000},
+]
+
+
+def points_for_commitment(commitment):
+    if commitment.startswith("Flexible"):
+        return 50
+    if commitment.startswith("Short term"):
+        return 100
+    if commitment.startswith("Long term"):
+        return 500
+    if commitment.startswith("Ongoing"):
+        return 2000
+    return 10
 
 
 def now_iso():
@@ -42,8 +60,23 @@ def row_to_listing(row):
         "summary": row.get("summary"),
         "summaryPromptVersion": row.get("summary_prompt_version"),
         "summaryReviewStatus": row.get("summary_review_status", "not_generated"),
+        "pointsValue": points_for_commitment(row["commitment"]),
+        "claimed": bool(row.get("claimed", False)),
         "createdAt": row.get("created_at").isoformat() if row.get("created_at") else None,
         "updatedAt": row.get("updated_at").isoformat() if row.get("updated_at") else None,
+    }
+
+
+def rewards_state(points_balance):
+    return {
+        "pointsBalance": points_balance,
+        "rewards": [
+            {
+                **reward,
+                "canRedeem": points_balance >= reward["pointsCost"],
+            }
+            for reward in REWARDS
+        ],
     }
 
 
@@ -100,6 +133,20 @@ class PostgresListingRepository:
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS user_points (
+            user_id TEXT PRIMARY KEY,
+            points_balance INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS listing_claims (
+            user_id TEXT NOT NULL,
+            listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+            points_awarded INTEGER NOT NULL,
+            claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, listing_id)
+        );
         """
         with connect() as conn:
             with conn.cursor() as cur:
@@ -120,16 +167,40 @@ class PostgresListingRepository:
             values.append(commitment)
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        sql = f"SELECT * FROM listings {where} ORDER BY created_at DESC, id DESC;"
+        sql = f"""
+        SELECT listings.*,
+            EXISTS (
+                SELECT 1
+                FROM listing_claims
+                WHERE listing_claims.listing_id = listings.id
+                  AND listing_claims.user_id = %s
+            ) AS claimed
+        FROM listings
+        {where}
+        ORDER BY created_at DESC, id DESC;
+        """
         with connect() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(sql, values)
+                cur.execute(sql, [DEMO_USER_ID, *values])
                 return [row_to_listing(row) for row in cur.fetchall()]
 
     def get(self, listing_id):
         with connect() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM listings WHERE id = %s;", (listing_id,))
+                cur.execute(
+                    """
+                    SELECT listings.*,
+                        EXISTS (
+                            SELECT 1
+                            FROM listing_claims
+                            WHERE listing_claims.listing_id = listings.id
+                              AND listing_claims.user_id = %s
+                        ) AS claimed
+                    FROM listings
+                    WHERE listings.id = %s;
+                    """,
+                    (DEMO_USER_ID, listing_id),
+                )
                 row = cur.fetchone()
                 return row_to_listing(row) if row else None
 
@@ -192,6 +263,112 @@ class PostgresListingRepository:
                 row = cur.fetchone()
                 return row_to_listing(row) if row else None
 
+    def get_points_balance(self):
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_points (user_id, points_balance)
+                    VALUES (%s, 0)
+                    ON CONFLICT (user_id) DO NOTHING;
+                    """,
+                    (DEMO_USER_ID,),
+                )
+                cur.execute(
+                    "SELECT points_balance FROM user_points WHERE user_id = %s;",
+                    (DEMO_USER_ID,),
+                )
+                return cur.fetchone()[0]
+
+    def claim_listing(self, listing_id):
+        listing = self.get(listing_id)
+        if not listing:
+            return None
+
+        points = listing["pointsValue"]
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_points (user_id, points_balance)
+                    VALUES (%s, 0)
+                    ON CONFLICT (user_id) DO NOTHING;
+                    """,
+                    (DEMO_USER_ID,),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO listing_claims (user_id, listing_id, points_awarded)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (user_id, listing_id) DO NOTHING;
+                    """,
+                    (DEMO_USER_ID, listing_id, points),
+                )
+                already_claimed = cur.rowcount == 0
+                if not already_claimed:
+                    cur.execute(
+                        """
+                        UPDATE user_points
+                        SET points_balance = points_balance + %s,
+                            updated_at = NOW()
+                        WHERE user_id = %s;
+                        """,
+                        (points, DEMO_USER_ID),
+                    )
+                cur.execute(
+                    "SELECT points_balance FROM user_points WHERE user_id = %s;",
+                    (DEMO_USER_ID,),
+                )
+                points_balance = cur.fetchone()[0]
+
+        updated_listing = self.get(listing_id)
+        return {
+            "listing": updated_listing,
+            "pointsBalance": points_balance,
+            "awardedPoints": 0 if already_claimed else points,
+            "alreadyClaimed": already_claimed,
+        }
+
+    def redeem_reward(self, reward_id):
+        reward = next((item for item in REWARDS if item["id"] == reward_id), None)
+        if not reward:
+            return None
+
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_points (user_id, points_balance)
+                    VALUES (%s, 0)
+                    ON CONFLICT (user_id) DO NOTHING;
+                    """,
+                    (DEMO_USER_ID,),
+                )
+                cur.execute(
+                    "SELECT points_balance FROM user_points WHERE user_id = %s FOR UPDATE;",
+                    (DEMO_USER_ID,),
+                )
+                points_balance = cur.fetchone()[0]
+                if points_balance < reward["pointsCost"]:
+                    return {
+                        "error": "Not enough points to redeem this reward.",
+                        **rewards_state(points_balance),
+                    }
+                points_balance -= reward["pointsCost"]
+                cur.execute(
+                    """
+                    UPDATE user_points
+                    SET points_balance = %s,
+                        updated_at = NOW()
+                    WHERE user_id = %s;
+                    """,
+                    (points_balance, DEMO_USER_ID),
+                )
+                return {
+                    "redeemedReward": reward,
+                    **rewards_state(points_balance),
+                }
+
     def delete(self, listing_id):
         with connect() as conn:
             with conn.cursor() as cur:
@@ -218,6 +395,8 @@ class PostgresListingRepository:
 class MemoryListingRepository:
     def __init__(self):
         self.next_id = 3
+        self.points_balance = 0
+        self.claimed_listing_ids = set()
         self.listings = [
             {
                 "id": 1,
@@ -258,6 +437,15 @@ class MemoryListingRepository:
     def init_schema(self):
         return None
 
+    def with_rewards(self, listing):
+        if not listing:
+            return None
+        return {
+            **listing,
+            "pointsValue": points_for_commitment(listing["commitment"]),
+            "claimed": listing["id"] in self.claimed_listing_ids,
+        }
+
     def list(self, search="", location="", commitment=""):
         results = self.listings
         if search:
@@ -273,10 +461,12 @@ class MemoryListingRepository:
             results = [listing for listing in results if listing["location"] == location]
         if commitment:
             results = [listing for listing in results if listing["commitment"] == commitment]
-        return list(reversed(results))
+        return [self.with_rewards(listing) for listing in reversed(results)]
 
     def get(self, listing_id):
-        return next((listing for listing in self.listings if listing["id"] == listing_id), None)
+        return self.with_rewards(
+            next((listing for listing in self.listings if listing["id"] == listing_id), None)
+        )
 
     def create(self, listing):
         created = {
@@ -290,20 +480,21 @@ class MemoryListingRepository:
         }
         self.next_id += 1
         self.listings.append(created)
-        return created
+        return self.with_rewards(created)
 
     def update(self, listing_id, listing):
         existing = self.get(listing_id)
         if not existing:
             return None
         existing.update({**listing, "updatedAt": now_iso()})
-        return existing
+        return self.with_rewards(existing)
 
     def delete(self, listing_id):
-        existing = self.get(listing_id)
+        existing = next((listing for listing in self.listings if listing["id"] == listing_id), None)
         if not existing:
             return False
         self.listings.remove(existing)
+        self.claimed_listing_ids.discard(listing_id)
         return True
 
     def save_summary(self, listing_id, summary, status="needs_review"):
@@ -318,7 +509,43 @@ class MemoryListingRepository:
                 "updatedAt": now_iso(),
             }
         )
-        return existing
+        return self.with_rewards(existing)
+
+    def get_points_balance(self):
+        return self.points_balance
+
+    def claim_listing(self, listing_id):
+        listing = self.get(listing_id)
+        if not listing:
+            return None
+
+        already_claimed = listing_id in self.claimed_listing_ids
+        points = listing["pointsValue"]
+        if not already_claimed:
+            self.claimed_listing_ids.add(listing_id)
+            self.points_balance += points
+
+        return {
+            "listing": self.get(listing_id),
+            "pointsBalance": self.points_balance,
+            "awardedPoints": 0 if already_claimed else points,
+            "alreadyClaimed": already_claimed,
+        }
+
+    def redeem_reward(self, reward_id):
+        reward = next((item for item in REWARDS if item["id"] == reward_id), None)
+        if not reward:
+            return None
+        if self.points_balance < reward["pointsCost"]:
+            return {
+                "error": "Not enough points to redeem this reward.",
+                **rewards_state(self.points_balance),
+            }
+        self.points_balance -= reward["pointsCost"]
+        return {
+            "redeemedReward": reward,
+            **rewards_state(self.points_balance),
+        }
 
 
 def summarize_listing(listing):
@@ -398,6 +625,28 @@ def create_app(repository=None):
             return jsonify({"error": "Listing not found."}), 404
         summary = summarize_listing(listing)
         return jsonify(app.config["LISTING_REPOSITORY"].save_summary(listing_id, summary))
+
+    @app.get("/api/rewards")
+    def get_rewards():
+        points_balance = app.config["LISTING_REPOSITORY"].get_points_balance()
+        return jsonify(rewards_state(points_balance))
+
+    @app.post("/api/listings/<int:listing_id>/claim")
+    def claim_listing(listing_id):
+        result = app.config["LISTING_REPOSITORY"].claim_listing(listing_id)
+        if not result:
+            return jsonify({"error": "Listing not found."}), 404
+        return jsonify(result)
+
+    @app.post("/api/rewards/redeem")
+    def redeem_reward():
+        payload = request.get_json(silent=True) or {}
+        result = app.config["LISTING_REPOSITORY"].redeem_reward(payload.get("rewardId"))
+        if not result:
+            return jsonify({"error": "Reward not found."}), 404
+        if result.get("error"):
+            return jsonify(result), 400
+        return jsonify(result)
 
     return app
 
