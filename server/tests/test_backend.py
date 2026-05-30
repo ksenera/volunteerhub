@@ -49,6 +49,18 @@ def test_create_and_filter_listing(client):
     assert listings[0]["organization"] == "Ottawa Food Bank"
 
 
+def test_create_listing_validation(client):
+    response = client.post("/api/listings", json={"title": "", "organization": ""})
+
+    assert response.status_code == 400
+    assert response.get_json()["errors"] == {
+        "title": "This field is required.",
+        "organization": "This field is required.",
+        "commitment": "This field is required.",
+        "location": "This field is required.",
+    }
+
+
 def test_update_delete_and_summary(client):
     created = client.post(
         "/api/listings",
@@ -77,6 +89,24 @@ def test_update_delete_and_summary(client):
     deleted = client.delete(f"/api/listings/{created['id']}")
     assert deleted.status_code == 204
     assert client.delete(f"/api/listings/{created['id']}").status_code == 404
+
+
+def test_missing_listing_routes_return_404(client):
+    update = client.put(
+        "/api/listings/999",
+        json={
+            "title": "Missing Listing",
+            "organization": "No Org",
+            "commitment": "Flexible",
+            "location": "Remote",
+        },
+    )
+    summary = client.post("/api/listings/999/summary")
+    claim = client.post("/api/listings/999/claim")
+
+    assert update.status_code == 404
+    assert summary.status_code == 404
+    assert claim.status_code == 404
 
 
 def test_claim_points_and_redeem_rewards(client):
@@ -123,3 +153,10 @@ def test_claim_points_and_redeem_rewards(client):
     assert redeemed.status_code == 200
     assert redeemed.get_json()["redeemedReward"]["id"] == "amazon"
     assert redeemed.get_json()["pointsBalance"] == 1500
+
+
+def test_unknown_reward_returns_404(client):
+    response = client.post("/api/rewards/redeem", json={"rewardId": "not-real"})
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Reward not found."
