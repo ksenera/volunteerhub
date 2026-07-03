@@ -158,6 +158,17 @@ pytest --cov=backend --cov-report=term-missing
 The backend tests use an in-memory repository, so they do not require PostgreSQL.
 Coverage reports are also printed in GitHub Actions so changes can be compared over time.
 
+### API Benchmark
+
+With the Flask API running, measure listing-read latency and reliability:
+
+```bash
+cd server
+python -m benchmarks.benchmark_api --requests 100 --concurrency 10
+```
+
+The JSON report includes request throughput, error rate, and average, p50, p95, and p99 latency. Run the same command against the same dataset before and after an optimization so the comparison stays honest.
+
 ## Optional AI Summary Workflow
 
 By default, `AI_PROVIDER=mock` generates a deterministic local summary. To use OpenAI instead:
