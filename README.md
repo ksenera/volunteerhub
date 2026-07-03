@@ -186,6 +186,17 @@ Generated summaries are stored on the listing with:
 
 New AI summaries are marked `needs_review`.
 
+### Summary Evaluation
+
+Run the deterministic mock-provider baseline:
+
+```bash
+cd server
+AI_PROVIDER=mock python -m evals.evaluate_summaries --samples 50
+```
+
+The report records provider, prompt version, generation success rate, required-field coverage, and average/p95 latency. The field metric checks whether title, organization, commitment, and location remain present; it is a narrow grounding check, not a complete measure of writing quality or hallucination risk.
+
 ## Rewards Flow
 
 Listings have a point value based on their commitment level. Users can claim points once per listing, see their current reward balance, and redeem prototype gift card rewards when they have enough points.
