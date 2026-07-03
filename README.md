@@ -144,6 +144,7 @@ Frontend:
 ```bash
 cd client
 npm test
+npm run test:coverage
 ```
 
 Backend:
@@ -151,9 +152,11 @@ Backend:
 ```bash
 cd server
 pytest
+pytest --cov=backend --cov-report=term-missing
 ```
 
 The backend tests use an in-memory repository, so they do not require PostgreSQL.
+Coverage reports are also printed in GitHub Actions so changes can be compared over time.
 
 ## Optional AI Summary Workflow
 
