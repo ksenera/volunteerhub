@@ -107,16 +107,47 @@ def evaluate_summaries(sample_count=50):
     }
 
 
+# This helper enforces quality gates for CI and local checks.
+def assert_thresholds(metrics, min_success_rate, min_field_coverage):
+    # Collect every failing metric so the terminal output is actionable.
+    failures = []
+    # Generation success protects against empty or provider-failed outputs.
+    if metrics["generationSuccessRatePercent"] < min_success_rate:
+        failures.append(
+            "generation success "
+            f"{metrics['generationSuccessRatePercent']}% is below {min_success_rate}%"
+        )
+    # Field coverage protects against summaries dropping important listing facts.
+    if metrics["requiredFieldCoveragePercent"] < min_field_coverage:
+        failures.append(
+            "required field coverage "
+            f"{metrics['requiredFieldCoveragePercent']}% is below {min_field_coverage}%"
+        )
+    # Raise one concise error if any gate fails.
+    if failures:
+        raise SystemExit("; ".join(failures))
+
+
 # This function defines how a developer runs the evaluation from a terminal.
 def main():
     # The module description becomes the command's help text.
     parser = argparse.ArgumentParser(description=__doc__)
     # Fifty samples provide a useful baseline without expensive default API calls.
     parser.add_argument("--samples", type=int, default=50)
+    # CI can set a minimum acceptable generation success rate.
+    parser.add_argument("--min-success-rate", type=float, default=0)
+    # CI can set a minimum acceptable field grounding score.
+    parser.add_argument("--min-field-coverage", type=float, default=0)
     # Parse flags supplied after the module name.
     arguments = parser.parse_args()
     # Evaluate the configured provider using the requested sample count.
     metrics = evaluate_summaries(arguments.samples)
+    # Fail fast when a caller provided thresholds and the provider misses them.
+    assert_thresholds(
+        metrics,
+        arguments.min_success_rate,
+        arguments.min_field_coverage,
+    )
     # Print stable JSON so future prompt versions can be compared directly.
     print(json.dumps(metrics, indent=2))
 

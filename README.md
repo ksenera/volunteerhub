@@ -156,6 +156,13 @@ pytest --cov=backend --cov-report=term-missing
 ```
 
 The backend tests use an in-memory repository, so they do not require PostgreSQL.
+PostgreSQL integration tests run when `POSTGRES_TEST_DATABASE_URL` is set:
+
+```bash
+cd server
+POSTGRES_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/volunteerhub_test pytest
+```
+
 Coverage reports are also printed in GitHub Actions so changes can be compared over time.
 
 ### API Benchmark
@@ -193,9 +200,11 @@ Run the deterministic mock-provider baseline:
 ```bash
 cd server
 AI_PROVIDER=mock python -m evals.evaluate_summaries --samples 50
+AI_PROVIDER=mock python -m evals.evaluate_summaries --samples 50 --min-success-rate 100 --min-field-coverage 100
 ```
 
 The report records provider, prompt version, generation success rate, required-field coverage, and average/p95 latency. The field metric checks whether title, organization, commitment, and location remain present; it is a narrow grounding check, not a complete measure of writing quality or hallucination risk.
+GitHub Actions runs the thresholded mock evaluation so prompt changes cannot silently lower the baseline.
 
 ## Rewards Flow
 

@@ -1,7 +1,9 @@
 """Tests for the deterministic parts of summary evaluation."""
 
-# Import the dataset builder and field checker as the evaluation contract.
-from evals.evaluate_summaries import build_listing, field_coverage
+import pytest
+
+# Import the dataset builder, field checker, and CI gate as the evaluation contract.
+from evals.evaluate_summaries import assert_thresholds, build_listing, field_coverage
 
 
 # A complete summary should preserve every required source field.
@@ -35,3 +37,17 @@ def test_field_coverage_identifies_missing_location():
         "commitment": True,
         "location": False,
     }
+
+
+# CI thresholds should fail loudly when a metric falls below the agreed baseline.
+def test_assert_thresholds_rejects_low_field_coverage():
+    # Build a deliberately weak metrics report.
+    metrics = {
+        "generationSuccessRatePercent": 100,
+        "requiredFieldCoveragePercent": 75,
+    }
+    # The threshold helper exits with an actionable failure message.
+    with pytest.raises(SystemExit) as failure:
+        assert_thresholds(metrics, min_success_rate=100, min_field_coverage=100)
+    # The message should name the specific weak metric.
+    assert "required field coverage" in str(failure.value)
