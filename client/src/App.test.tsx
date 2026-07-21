@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "jest-axe";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import App from "./App";
 import type { Listing } from "./components/listings/api";
@@ -218,6 +219,15 @@ describe("App", () => {
     expect(await screen.findByText("Community Event Organizer")).toBeInTheDocument();
     expect(screen.getByText("Food Bank Helper")).toBeInTheDocument();
     expect(screen.getByText("50 points available")).toBeInTheDocument();
+  });
+
+  test("has no obvious accessibility violations on the listings screen", async () => {
+    const { container } = render(<App />);
+
+    await screen.findByText("Community Event Organizer");
+    const results = await axe(container);
+
+    expect(results.violations).toEqual([]);
   });
 
   test("searches and filters listings", async () => {
