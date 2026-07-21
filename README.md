@@ -139,6 +139,23 @@ Open `http://localhost:5173`.
 
 ## Tests
 
+### Test Strategy
+
+| Area | Tooling | What it checks |
+| --- | --- | --- |
+| React UI | Vitest, React Testing Library, jest-axe | listing workflows, rewards flow, API error state, and an accessibility smoke test |
+| Flask API | pytest | health, validation, CRUD, summary, rewards, duplicate claims, and missing-resource paths |
+| PostgreSQL | pytest with `POSTGRES_TEST_DATABASE_URL` | the real database repository for listing lifecycle, summary persistence, claims, and deletion |
+| AI summary eval | Python evaluation script | mock-provider generation success, required-field coverage, prompt version, and latency |
+| CI | GitHub Actions | frontend coverage, backend coverage, PostgreSQL integration tests, frontend build, and summary thresholds |
+
+Current local baseline:
+
+- Frontend tests: 8 tests, with listing workflow coverage over 98% in the last coverage run.
+- Backend tests: 16 tests locally, with PostgreSQL integration skipped unless a test database URL is provided.
+- Backend coverage: 66% in the last coverage run.
+- Mock AI summary eval: 50 samples, 100% generation success, 100% required-field coverage.
+
 Frontend:
 
 ```bash
