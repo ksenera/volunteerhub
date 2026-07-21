@@ -151,7 +151,7 @@ Open `http://localhost:5173`.
 
 Current local baseline:
 
-- Frontend tests: 8 tests, with listing workflow coverage over 98% in the last coverage run.
+- Frontend tests: 8 tests, with 47.54% overall coverage and listing workflow coverage over 98% in the last coverage run.
 - Backend tests: 16 tests locally, with PostgreSQL integration skipped unless a test database URL is provided.
 - Backend coverage: 66% in the last coverage run.
 - Mock AI summary eval: 50 samples, 100% generation success, 100% required-field coverage.
