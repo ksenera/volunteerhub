@@ -61,6 +61,50 @@ def test_create_listing_validation(client):
     }
 
 
+def test_listing_validation_rejects_negative_distance(client):
+    response = client.post(
+        "/api/listings",
+        json={
+            "title": "Park Cleanup",
+            "organization": "Green Ottawa",
+            "commitment": "Flexible",
+            "location": "Ottawa",
+            "distanceMinutes": -5,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["errors"] == {
+        "distanceMinutes": "Distance must be zero or more minutes."
+    }
+
+
+def test_listing_validation_rejects_non_numeric_distance(client):
+    response = client.post(
+        "/api/listings",
+        json={
+            "title": "Park Cleanup",
+            "organization": "Green Ottawa",
+            "commitment": "Flexible",
+            "location": "Ottawa",
+            "distanceMinutes": "nearby",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["errors"] == {
+        "distanceMinutes": "Distance must be a number of minutes."
+    }
+
+
+def test_update_listing_validation_errors(client):
+    response = client.put("/api/listings/1", json={"title": "", "organization": ""})
+
+    assert response.status_code == 400
+    assert response.get_json()["errors"]["title"] == "This field is required."
+    assert response.get_json()["errors"]["commitment"] == "This field is required."
+
+
 def test_update_delete_and_summary(client):
     created = client.post(
         "/api/listings",
@@ -157,6 +201,13 @@ def test_claim_points_and_redeem_rewards(client):
 
 def test_unknown_reward_returns_404(client):
     response = client.post("/api/rewards/redeem", json={"rewardId": "not-real"})
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Reward not found."
+
+
+def test_missing_reward_id_returns_404(client):
+    response = client.post("/api/rewards/redeem", json={})
 
     assert response.status_code == 404
     assert response.get_json()["error"] == "Reward not found."
